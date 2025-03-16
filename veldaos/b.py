@@ -6,12 +6,14 @@ import base64
 
 print(os.getenv("OPENAI_API_KEY"))
 
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 def get_response(image: bytes):
     if image is None:
         print("Failed to read the image. Please check the file path.")
         return
 
-    completion = openai.ChatCompletion.create(
+    completion = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": "You are a helpful assistant that can answer questions and help with tasks."},
@@ -28,7 +30,9 @@ def get_response(image: bytes):
 print("Current working directory:", os.getcwd())
 
 # Attempt to read the image
-image = cv2.imread("../screenshots/merged_close_screenshot.png")
+image = cv2.imread("screenshots/merged_close_screenshot.png")
+_, buffer = cv2.imencode('.png', image)
+image = buffer.tobytes()
 
 # Call the function
 get_response(image)
