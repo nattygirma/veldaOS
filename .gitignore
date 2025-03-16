@@ -82,4 +82,9 @@ coverage.xml
 dmypy.json
 
 # pytest
-.pytest_cache/ 
+.pytest_cache/
+
+# Add to .gitignore
+*.pyc
+*.pyo
+*.pyd 
