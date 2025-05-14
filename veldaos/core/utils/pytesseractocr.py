@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 from PIL import Image
 import io
+from veldaos.core.utils.preprocess import preprocess_image
 
 class PyTesseractOCR:
     def __init__(self, quality=1.0):
@@ -12,23 +13,15 @@ class PyTesseractOCR:
         self.quality = quality
         self.gray_mode = True
 
-    def preprocess_image(self,image:Image.Image):
-        """ Convert to a single-channel black and white (binary) image """
-        width = int(image.width * self.quality)
-        height = int(image.height * self.quality)
-        image = image.resize((width, height))
-        gray = cv2.cvtColor(np.array(image), cv2.COLOR_BGR2GRAY)  # Convert to grayscale
-        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)  # Binarization
-        return binary  # This is a single-channel image
-
-    def perform_ocr(self, screenshot: bytes) -> List[Dict[str, int]]:
+    def perform_ocr(self, screenshot: bytes, preprocess_method: str = "contrast") -> List[Dict[str, int]]:
         # Convert screenshot to PIL Image
         image = Image.open(io.BytesIO(screenshot))
-        binary_image = self.preprocess_image(image)
-        
+        # Preprocess image using the selected method
+        processed = preprocess_image(image, preprocess_method)
+        # Convert back to PIL Image for pytesseract
+        pil_processed = Image.fromarray(processed)
         # Perform OCR
-        ocr_data = pytesseract.image_to_data(binary_image, output_type=pytesseract.Output.DICT)
-        
+        ocr_data = pytesseract.image_to_data(pil_processed, output_type=pytesseract.Output.DICT)
         # Extract text elements
         text_elements = []
         for i, text in enumerate(ocr_data['text']):
@@ -37,7 +30,6 @@ class PyTesseractOCR:
                 y = ocr_data['top'][i]
                 w = ocr_data['width'][i]
                 h = ocr_data['height'][i]
-                
                 text_elements.append({
                     'text': text,
                     'x': x,
@@ -45,17 +37,13 @@ class PyTesseractOCR:
                     'width': w,
                     'height': h
                 })
-                # Save annotated image
-        # cv2.imwrite('screenshots/annotated_screenshot.png', cv_image)
-        # return text_elements 
-        self.draw_boxes("annotated",screenshot, text_elements)
+        self.draw_boxes("annotated", screenshot, text_elements)
         merged_elements = self.merge_overlapping_boxes(text_elements)
-        self.draw_boxes("merged",screenshot, merged_elements)
+        self.draw_boxes("merged", screenshot, merged_elements)
         merged_close_elements = self.merge_close_text(merged_elements)
-        self.draw_boxes("merged_close",screenshot, merged_close_elements)
+        self.draw_boxes("merged_close", screenshot, merged_close_elements)
         return merged_close_elements
 
-    
     def merge_close_text(self, text_elements: List[Dict[str, int]]) -> List[Dict[str, int]]:
         merged_elements = []
         used_indices = set()
@@ -72,8 +60,8 @@ class PyTesseractOCR:
                 x2, y2, w2, h2 = elem2['x'], elem2['y'], elem2['width'], elem2['height']
                 text2 = elem2['text']
 
-                if len(merged_elements) == 22 or len(merged_elements) == 23 or len(merged_elements) == 24:
-                    logger.info(f"text1: {text1} text2: {text2} x1: {x1} x2: {x2} w1: {w1} w2: {w2} h1: {h1} h2: {h2} y1: {y1} y2: {y2}")
+                # if len(merged_elements) == 22 or len(merged_elements) == 23 or len(merged_elements) == 24:
+                #     logger.info(f"text1: {text1} text2: {text2} x1: {x1} x2: {x2} w1: {w1} w2: {w2} h1: {h1} h2: {h2} y1: {y1} y2: {y2}")
                 # Check if boxes are within 10 pixels horizontally
                 distance = min(abs(x1 - (x2 + w2)), abs(x2 - (x1 + w1)))
                 if distance <= 10:
@@ -95,6 +83,7 @@ class PyTesseractOCR:
             used_indices.add(i)
 
         return merged_elements
+
     def merge_overlapping_boxes(self, text_elements: List[Dict[str, int]]) -> List[Dict[str, int]]:
         merged_elements = []
         used_indices = set()
@@ -176,6 +165,7 @@ class PyTesseractOCR:
             cv2.putText(cv_image, str(i), (x, y-5),
                         cv2.FONT_HERSHEY_SIMPLEX, font_size, (255,255,255), font_weight)
         # Save merged annotated image
+        print(f'screenshots/{name}_screenshot.png')
         cv2.imwrite(f'screenshots/{name}_screenshot.png', cv_image)
 
 

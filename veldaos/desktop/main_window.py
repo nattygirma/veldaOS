@@ -12,7 +12,8 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QFrame,
     QScrollArea,
-    QSizePolicy
+    QSizePolicy,
+    QTabWidget
 )
 from PyQt6.QtCore import (
     Qt,
@@ -33,6 +34,7 @@ from loguru import logger
 
 from veldaos.marketplace.marketplace import Marketplace, AgentPackage
 from veldaos.core.agent import BaseAgent
+from veldaos.desktop.ui.agent_grid import AgentGridWidget
 
 class AgentRunner(QThread):
     """Thread for running agents to prevent UI freezing."""
@@ -62,9 +64,40 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("VeldaOS - AI Agent Marketplace")
         self.setMinimumSize(800, 600)
         
+        # Set dark theme
+        self.setStyleSheet("""
+            QMainWindow {
+                background: #1a1a1a;
+            }
+            QWidget {
+                background: #1a1a1a;
+                color: #ecf0f1;
+            }
+            QPushButton {
+                background: #2c3e50;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                color: #ecf0f1;
+            }
+            QPushButton:hover {
+                background: #34495e;
+            }
+            QLineEdit {
+                background: #2c3e50;
+                border: none;
+                padding: 8px;
+                border-radius: 4px;
+                color: #ecf0f1;
+            }
+            QLineEdit:focus {
+                background: #34495e;
+            }
+        """)
+        
         # Initialize marketplace
         self.marketplace = Marketplace(
-            marketplace_url="https://api.veldaos.com/marketplace",
+            marketplace_url="https://velda.pro",
             local_agents_dir="./agents"
         )
         
@@ -126,12 +159,95 @@ class MainWindow(QMainWindow):
         search_layout = QHBoxLayout()
         search_input = QLineEdit()
         search_input.setPlaceholderText("Search agents...")
+        search_input.setStyleSheet("""
+            QLineEdit {
+                background: #2c3e50;
+                border: none;
+                padding: 8px;
+                border-radius: 4px;
+                color: #ecf0f1;
+            }
+            QLineEdit:focus {
+                background: #34495e;
+            }
+            QLineEdit::placeholder {
+                color: #7f8c8d;
+            }
+        """)
         search_layout.addWidget(search_input)
         layout.addLayout(search_layout)
         
-        # Add agent list
-        self.marketplace_list = QListWidget()
-        layout.addWidget(self.marketplace_list)
+        # Create tab widget
+        tab_widget = QTabWidget()
+        tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                border: none;
+                background: #1a1a1a;
+            }
+            QTabWidget::tab-bar {
+                alignment: left;
+            }
+            QTabBar::tab {
+                background: #2c3e50;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border: none;
+                border-radius: 4px 4px 0 0;
+                color: #bdc3c7;
+            }
+            QTabBar::tab:selected {
+                background: #34495e;
+                color: #ecf0f1;
+                font-weight: bold;
+            }
+            QTabBar::tab:hover:!selected {
+                background: #34495e;
+            }
+        """)
+        
+        # Create scroll areas for each tab
+        installed_scroll = QScrollArea()
+        installed_scroll.setWidgetResizable(True)
+        installed_scroll.setStyleSheet("""
+            QScrollArea { 
+                border: none;
+                background: #1a1a1a;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #2c3e50;
+                width: 10px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:vertical {
+                background: #34495e;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #3498db;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                border: none;
+                background: none;
+            }
+        """)
+        
+        uninstalled_scroll = QScrollArea()
+        uninstalled_scroll.setWidgetResizable(True)
+        uninstalled_scroll.setStyleSheet(installed_scroll.styleSheet())
+        
+        # Add agent grids to scroll areas
+        self.installed_grid = AgentGridWidget()
+        installed_scroll.setWidget(self.installed_grid)
+        
+        self.uninstalled_grid = AgentGridWidget()
+        uninstalled_scroll.setWidget(self.uninstalled_grid)
+        
+        # Add tabs
+        tab_widget.addTab(installed_scroll, "Installed")
+        tab_widget.addTab(uninstalled_scroll, "Available")
+        
+        layout.addWidget(tab_widget)
         
         return page
     
@@ -174,17 +290,29 @@ class MainWindow(QMainWindow):
     
     def load_agents(self):
         """Load available and installed agents."""
-        # Load marketplace agents
-        available_agents = self.marketplace.get_available_agents()
-        self.marketplace_list.clear()
-        for agent in available_agents:
-            self.marketplace_list.addItem(f"{agent.name} - {agent.description}")
-        
-        # Load installed agents
-        installed_agents = self.marketplace.get_installed_agents()
-        self.installed_list.clear()
-        for agent in installed_agents:
-            self.installed_list.addItem(f"{agent.name} v{agent.version}")
+        try:
+            # Load available agents
+            available_agents = []  # self.marketplace.get_available_agents()
+            available_agent_data = [
+                {"name": agent.name, "desc": agent.description, "icon": "icon.png"}
+                for agent in available_agents
+            ]
+            
+            # Load installed agents
+            installed_agents = []  # self.marketplace.get_installed_agents()
+            installed_agent_data = [
+                {"name": agent.name, "desc": f"v{agent.version}", "icon": "icon.png"}
+                for agent in installed_agents
+            ]
+            
+            # Update the grids with actual data
+            # For now, they will use the sample data defined in AgentGridWidget
+            # self.installed_grid.update_agents(installed_agent_data)
+            # self.uninstalled_grid.update_agents(available_agent_data)
+            
+        except Exception as e:
+            logger.error(f"Failed to load agents: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to load agents: {e}")
     
     def show_marketplace(self):
         """Show the marketplace page."""
